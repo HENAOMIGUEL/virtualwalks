@@ -324,3 +324,30 @@ body {
 #sceneListToggle.enabled .icon.on {
   opacity: 1;
 }
+
+/* btns autorotate */
+#autorotateToggle .icon {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  transition: opacity .25s ease;
+}
+
+/* estado por defecto */
+#autorotateToggle .icon.on {
+  opacity: 0;
+}
+
+#autorotateToggle .icon.off {
+  opacity: 1;
+}
+
+/* cuando está activo */
+#autorotateToggle.enabled .icon.on {
+  opacity: 1;
+}
+
+#autorotateToggle.enabled .icon.off {
+  opacity: 0;
+}
