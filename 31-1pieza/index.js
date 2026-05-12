@@ -1,18 +1,4 @@
-/*
- * Copyright 2016 Google Inc. All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 'use strict';
 
 (function () {
@@ -69,7 +55,7 @@
 
   // Initialize viewer.
   var viewer = new Marzipano.Viewer(panoElement, viewerOpts);
-
+  window.viewer = viewer;
   // Create scenes.
   var scenes = data.scenes.map(function (data) {
     var urlPrefix = "tiles";
@@ -78,8 +64,12 @@
       { cubeMapPreviewUrl: urlPrefix + "/" + data.id + "/preview.jpg" });
     var geometry = new Marzipano.CubeGeometry(data.levels);
 
-    var limiter = Marzipano.RectilinearView.limit.traditional(data.faceSize, 100 * Math.PI / 180, 120 * Math.PI / 180);
-    var view = new Marzipano.RectilinearView(data.initialViewParameters, limiter);
+    var limiter =
+      Marzipano.RectilinearView.limit.traditional(
+        data.faceSize,
+        100 * Math.PI / 180,
+        100 * Math.PI / 180
+      ); var view = new Marzipano.RectilinearView(data.initialViewParameters, limiter);
 
     var scene = viewer.createScene({
       source: source,
@@ -182,30 +172,32 @@
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;');
   }
 
-  function switchScene(scene, targetYaw) {
+  function switchScene(scene, entryYaw) {
+
     stopAutorotate();
 
-    // Si viene una dirección previa, usarla
-    if (targetYaw !== undefined) {
+    // conservar dirección de entrada
+    if (entryYaw !== undefined) {
 
-      var currentParams = scene.view.parameters();
+      var params = scene.data.initialViewParameters;
 
       scene.view.setParameters({
-        yaw: targetYaw,
-        pitch: currentParams.pitch || 0,
-        fov: currentParams.fov || Math.PI / 2
+        yaw: entryYaw,
+        pitch: params.pitch,
+        fov: params.fov
       });
 
     } else {
 
-      scene.view.setParameters(scene.data.initialViewParameters);
+      scene.view.setParameters(
+        scene.data.initialViewParameters
+      );
 
     }
 
     scene.scene.switchTo();
 
     startAutorotate();
-    updateSceneName(scene);
     updateSceneList(scene);
   }
 
@@ -240,11 +232,17 @@
   }
 
   function startAutorotate() {
+
     if (!autorotateToggleElement.classList.contains('enabled')) {
       return;
     }
-    viewer.startMovement(autorotate);
-    viewer.setIdleMovement(3000, autorotate);
+
+    setTimeout(function () {
+
+      viewer.startMovement(autorotate);
+      viewer.setIdleMovement(3000, autorotate);
+
+    }, 1200);
   }
 
   function stopAutorotate() {
@@ -264,45 +262,91 @@
 
   function createLinkHotspotElement(hotspot) {
 
-    // Create wrapper element to hold icon and tooltip.
     var wrapper = document.createElement('div');
     wrapper.classList.add('hotspot');
     wrapper.classList.add('link-hotspot');
 
-    // Create image element.
     var icon = document.createElement('img');
-    icon.src = 'img/link.png';
+    icon.src = 'img/navigate.png';
     icon.classList.add('link-hotspot-icon');
 
-    // Set rotation transform.
     var transformProperties = ['-ms-transform', '-webkit-transform', 'transform'];
+
     for (var i = 0; i < transformProperties.length; i++) {
-      var property = transformProperties[i];
-      icon.style[property] = 'rotate(' + (hotspot.rotation || 0) + 'rad)';
+      icon.style[transformProperties[i]] =
+        'rotate(' + hotspot.rotation + 'rad)';
     }
 
-    // Add click event handler.
-    wrapper.addEventListener('click', function () {
-      var currentYaw = viewer.view().yaw();
+    wrapper.appendChild(icon);
 
-      switchScene(
-        findSceneById(hotspot.target),
-        currentYaw
-      );
+    wrapper.addEventListener('click', function () {
+
+      var nextScene = findSceneById(hotspot.target);
+
+      var currentView = viewer.view();
+
+      var startYaw = currentView.yaw();
+      var startPitch = currentView.pitch();
+      var startFov = currentView.fov();
+
+      // conservar dirección natural
+      var targetYaw = hotspot.yaw + Math.PI;
+
+      // evitar múltiples clicks
+      if (wrapper.classList.contains('moving')) return;
+      wrapper.classList.add('moving');
+
+      // duración TOTAL
+      var duration = 20;
+
+      // zoom cinematográfico REAL
+      var startTime = performance.now();
+
+      function animate(now) {
+
+        var progress = (now - startTime) / duration;
+
+        if (progress > 1) progress = 1;
+
+        // easing suave tipo matterport
+        var ease = 1 - Math.pow(1 - progress, 3);
+
+        // zoom progresivo REAL
+        var currentFov =
+          startFov - ((startFov - (startFov * 0.12)) * ease);
+
+        currentView.setParameters({
+          yaw: startYaw,
+          pitch: startPitch,
+          fov: currentFov
+        });
+
+        // cambiar EXACTAMENTE al final
+        if (progress < 1) {
+
+          requestAnimationFrame(animate);
+
+        } else {
+
+          // cambiar escena
+          switchScene(nextScene, targetYaw);
+
+          // restaurar FOV instantáneo
+          nextScene.view.setParameters({
+            yaw: targetYaw,
+            pitch: startPitch,
+            fov: startFov
+          });
+
+          wrapper.classList.remove('moving');
+        }
+      }
+
+      requestAnimationFrame(animate);
+
     });
 
-    // Prevent touch and scroll events from reaching the parent element.
-    // This prevents the view control logic from interfering with the hotspot.
     stopTouchAndScrollEventPropagation(wrapper);
-
-    // Create tooltip element.
-    /* var tooltip = document.createElement('div');
-    tooltip.classList.add('hotspot-tooltip');
-    tooltip.classList.add('link-hotspot-tooltip');
-    tooltip.innerHTML = findSceneDataById(hotspot.target).name;
-    wrapper.appendChild(tooltip); */
-
-    wrapper.appendChild(icon);
 
     return wrapper;
   }

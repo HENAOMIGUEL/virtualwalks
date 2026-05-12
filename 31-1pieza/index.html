@@ -2,10 +2,9 @@
 <html>
 
 <head>
-  <base>
   <title>31 - 1 pieza</title>
-  <base href="/31-1pieza/">
-
+  <!--   <base href="/31-1pieza/">
+ -->
   <meta charset="utf-8">
   <meta name="viewport"
     content="target-densitydpi=device-dpi, width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, minimal-ui" />
@@ -21,6 +20,12 @@
 <body class="multiple-scenes ">
 
   <div id="pano"></div>
+  <div id="sceneFade"></div>
+
+  <a href="javascript:void(0)" id="autorotateToggle">
+    <img class="icon off" src="img/play.png">
+    <img class="icon on" src="img/pause.png">
+  </a>
 
   <div id="sceneList">
     <ul class="scenes">
@@ -53,13 +58,12 @@
   </div>
 
   <div id="titleBar">
-    <h1 class="sceneName"></h1>
+    <div class="sceneName">
+      31 - 1 HABITACION
+    </div>
   </div>
 
-  <a href="javascript:void(0)" id="autorotateToggle">
-    <img class="icon off" src="img/play.png">
-    <img class="icon on" src="img/pause.png">
-  </a>
+
 
   <a href="javascript:void(0)" id="fullscreenToggle">
     <img class="icon off" src="img/fullscreen.png">
@@ -70,6 +74,9 @@
     <img class="icon off" src="img/expand.png">
     <img class="icon on" src="img/collapse.png">
   </a>
+
+
+
 
   <a href="javascript:void(0)" id="viewUp" class="viewControlButton viewControlButton-1">
     <img class="icon" src="img/up.png">
