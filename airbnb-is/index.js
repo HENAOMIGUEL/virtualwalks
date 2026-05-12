@@ -1,18 +1,4 @@
-/*
- * Copyright 2016 Google Inc. All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 'use strict';
 
 (function () {
@@ -69,7 +55,7 @@
 
   // Initialize viewer.
   var viewer = new Marzipano.Viewer(panoElement, viewerOpts);
-
+  window.viewer = viewer;
   // Create scenes.
   var scenes = data.scenes.map(function (data) {
     var urlPrefix = "tiles";
@@ -78,8 +64,12 @@
       { cubeMapPreviewUrl: urlPrefix + "/" + data.id + "/preview.jpg" });
     var geometry = new Marzipano.CubeGeometry(data.levels);
 
-    var limiter = Marzipano.RectilinearView.limit.traditional(data.faceSize, 100 * Math.PI / 180, 120 * Math.PI / 180);
-    var view = new Marzipano.RectilinearView(data.initialViewParameters, limiter);
+    var limiter =
+      Marzipano.RectilinearView.limit.traditional(
+        data.faceSize,
+        100 * Math.PI / 180,
+        100 * Math.PI / 180
+      ); var view = new Marzipano.RectilinearView(data.initialViewParameters, limiter);
 
     var scene = viewer.createScene({
       source: source,
@@ -183,12 +173,26 @@
   }
 
   function switchScene(scene, entryYaw) {
+
     stopAutorotate();
 
+    // conservar dirección de entrada
     if (entryYaw !== undefined) {
-      scene.view.setYaw(entryYaw);
+
+      var params = scene.data.initialViewParameters;
+
+      scene.view.setParameters({
+        yaw: entryYaw,
+        pitch: params.pitch,
+        fov: params.fov
+      });
+
     } else {
-      scene.view.setParameters(scene.data.initialViewParameters);
+
+      scene.view.setParameters(
+        scene.data.initialViewParameters
+      );
+
     }
 
     scene.scene.switchTo();
@@ -228,11 +232,17 @@
   }
 
   function startAutorotate() {
+
     if (!autorotateToggleElement.classList.contains('enabled')) {
       return;
     }
-    viewer.startMovement(autorotate);
-    viewer.setIdleMovement(3000, autorotate);
+
+    setTimeout(function () {
+
+      viewer.startMovement(autorotate);
+      viewer.setIdleMovement(3000, autorotate);
+
+    }, 1200);
   }
 
   function stopAutorotate() {
@@ -252,45 +262,94 @@
 
   function createLinkHotspotElement(hotspot) {
 
-  var wrapper = document.createElement('div');
-  wrapper.classList.add('hotspot');
-  wrapper.classList.add('link-hotspot');
+    var wrapper = document.createElement('div');
+    wrapper.classList.add('hotspot');
+    wrapper.classList.add('link-hotspot');
 
-  var icon = document.createElement('img');
-  icon.src = 'img/flecha.png';
-  icon.classList.add('link-hotspot-icon');
+    var icon = document.createElement('img');
+    icon.src = 'img/navigate.png';
+    icon.classList.add('link-hotspot-icon');
 
-  var transformProperties = ['-ms-transform', '-webkit-transform', 'transform'];
-  for (var i = 0; i < transformProperties.length; i++) {
-    icon.style[transformProperties[i]] =
-      'rotate(' + hotspot.rotation + 'rad)';
+    var transformProperties = ['-ms-transform', '-webkit-transform', 'transform'];
+
+    for (var i = 0; i < transformProperties.length; i++) {
+      icon.style[transformProperties[i]] =
+        'rotate(' + hotspot.rotation + 'rad)';
+    }
+
+    wrapper.appendChild(icon);
+
+    wrapper.addEventListener('click', function () {
+
+      var nextScene = findSceneById(hotspot.target);
+
+      var currentView = viewer.view();
+
+      var startYaw = currentView.yaw();
+      var startPitch = currentView.pitch();
+      var startFov = currentView.fov();
+
+      // conservar dirección natural
+      var targetYaw = hotspot.yaw + Math.PI;
+
+      // evitar múltiples clicks
+      if (wrapper.classList.contains('moving')) return;
+      wrapper.classList.add('moving');
+
+      // duración TOTAL
+      var duration = 20;
+
+      // zoom cinematográfico REAL
+      var startTime = performance.now();
+
+      function animate(now) {
+
+        var progress = (now - startTime) / duration;
+
+        if (progress > 1) progress = 1;
+
+        // easing suave tipo matterport
+        var ease = 1 - Math.pow(1 - progress, 3);
+
+        // zoom progresivo REAL
+        var currentFov =
+          startFov - ((startFov - (startFov * 0.12)) * ease);
+
+        currentView.setParameters({
+          yaw: startYaw,
+          pitch: startPitch,
+          fov: currentFov
+        });
+
+        // cambiar EXACTAMENTE al final
+        if (progress < 1) {
+
+          requestAnimationFrame(animate);
+
+        } else {
+
+          // cambiar escena
+          switchScene(nextScene, targetYaw);
+
+          // restaurar FOV instantáneo
+          nextScene.view.setParameters({
+            yaw: targetYaw,
+            pitch: startPitch,
+            fov: startFov
+          });
+
+          wrapper.classList.remove('moving');
+        }
+      }
+
+      requestAnimationFrame(animate);
+
+    });
+
+    stopTouchAndScrollEventPropagation(wrapper);
+
+    return wrapper;
   }
-
-  wrapper.appendChild(icon);
-
-  wrapper.addEventListener('click', function () {
-
-    // 🔥 1. obtener escena destino
-    var nextScene = findSceneById(hotspot.target);
-
-    // 🔥 2. ajustar orientación ANTES de entrar
-    nextScene.view.setYaw(hotspot.rotation);
-
-    // 🔥 3. cambiar escena
-    nextScene.scene.switchTo();
-
-  });
-
-  stopTouchAndScrollEventPropagation(wrapper);
-
-  var tooltip = document.createElement('div');
-  tooltip.classList.add('hotspot-tooltip', 'link-hotspot-tooltip');
-  tooltip.innerHTML = findSceneDataById(hotspot.target).name;
-
-  wrapper.appendChild(tooltip);
-
-  return wrapper;
-}
 
   function createInfoHotspotElement(hotspot) {
 
